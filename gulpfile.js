@@ -10,9 +10,24 @@ var pngquant = require('imagemin-pngquant');
 var webp = require('gulp-webp');
 var babel = require("gulp-babel");
 var browserSync = require('browser-sync').create();
+var pug = require('gulp-pug');
+var swig = require('gulp-swig');
+var path = require('path');
+var data = require('gulp-data');
+var fs = require('fs');
 
 // variable for path to files
-const path = {
+const paths = {
+    src:{
+        scss: './app/scss/app.scss',
+        js: './app/js/app.js',
+        img: './app/images/**/*.*',
+    },
+    dist:{
+        css: './build/css',
+        js: './build/js',
+        img: './build/images',
+    },
     js: {
         wow: './node_modules/wowjs/dist/wow.min.js'
     }
@@ -34,7 +49,7 @@ gulp.task('sync', sync);
 
 function compileStyle(cb) {
 
-    gulp.src('./app/scss/app.scss')
+    gulp.src(paths.src.scss)
         .pipe(sourcemaps.init())
         .pipe(scss({
             outputStyle: 'compressed',
@@ -54,7 +69,7 @@ function compileStyle(cb) {
             suffix: '.min'
         }))
         .pipe(sourcemaps.write())
-        .pipe(gulp.dest('./build/css'))
+        .pipe(gulp.dest(paths.dist.css))
         .pipe(notify({ message: 'Styles task complete 😉', sound: false, onLast: true }))
         .pipe(browserSync.stream());
 
@@ -63,27 +78,37 @@ function compileStyle(cb) {
 gulp.task('compileStyle', compileStyle);
 
 function buildHtml(cb) {
-    console.log('html');
-    gulp.src('app/**/*.html')
-        .pipe(gulp.dest('build/'))
-        .pipe(browserSync.reload({ stream: true }));
+    let pugJson = JSON.parse( fs.readFileSync('./app/helpers/data/main.json', { encoding: 'utf8' }));
+    gulp.src('app/*.pug')
+    .pipe(data(function (file) {
+        return JSON.parse(fs.readFileSync('./app/helpers/data/' + path.basename(file.path) + '.json'))
+	}))
+    .pipe(pug({
+        pretty: true,
+        locals: pugJson
+    }))
+    .pipe(gulp.dest('build/'))
+    .pipe(browserSync.reload({ stream: true }));
     cb();
 }
+
+gulp.task('buildHtml', buildHtml);
+
 
 function buildJs(cb) {
 
 
-    gulp.src("app/js/app.js")
+    gulp.src(paths.src.js)
         .pipe(sourcemaps.init())
         .pipe(babel({
             presets: ['@babel/env']
         }))
-        .pipe(gulp.dest("build/js"))
+        .pipe(gulp.dest(paths.dist.js))
         .pipe(browserSync.reload({ stream: true }));
 
         gulp.src(['app/js/*.js', '!app/js/app.js'])
         .pipe(sourcemaps.init())
-        .pipe(gulp.dest("build/js"))
+        .pipe(gulp.dest(paths.dist.js))
         .pipe(browserSync.reload({ stream: true }));
 
     cb();
@@ -92,18 +117,18 @@ function buildJs(cb) {
 gulp.task('buildJs', buildJs);
 
 function imageBuild(cb) {
-    gulp.src('app/images/**/*.*')
+    gulp.src(paths.src.img)
         .pipe(imagemin({
             progressive: true,
             svgoPlugins: [{ removeViewBox: false }],
             use: [pngquant()],
             interlaced: true
         }))
-        .pipe(gulp.dest('build/images'));
+        .pipe(gulp.dest(paths.dist.img));
 
-        gulp.src('app/images/**.*')
+        gulp.src('app/images/**/**.*')
         .pipe(webp())
-        .pipe(gulp.dest('build/images'))
+        .pipe(gulp.dest(paths.dist.img))
         .pipe(browserSync.reload({ stream: true }));
 
     cb();
@@ -114,7 +139,7 @@ gulp.task('imageBuild', imageBuild);
 
 function watchFiles(cb) {
     gulp.watch('./**/*.scss', compileStyle);
-    gulp.watch('app/**/*.html', buildHtml);
+    gulp.watch('app/**/*.pug', buildHtml);
     gulp.watch('app/**/*.js', buildJs);
 
     cb();
@@ -122,8 +147,8 @@ function watchFiles(cb) {
 
 function copyScripts(cb){
     
-    gulp.src(path.js.wow)
-        .pipe(gulp.dest('build/js'));
+    gulp.src(paths.js.wow)
+        .pipe(gulp.dest(paths.dist.js));
 
     cb();
 }
